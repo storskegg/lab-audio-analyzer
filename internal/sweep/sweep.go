@@ -25,6 +25,8 @@ type Sweep interface {
 	Once() error
 	Start() error
 	Stop() error
+	RemoveBucket(idx int)
+	Measure(freq float64) (float64, error)
 }
 
 func NewSweep(ctx context.Context, config *Config) Sweep {
@@ -51,6 +53,9 @@ type sweep struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
+	muBuckets sync.Mutex
+	muMeasure sync.Mutex
+
 	Config  *Config
 	Buckets map[int]Bucket
 }
@@ -60,17 +65,52 @@ func (s *sweep) Once() error {
 }
 
 func (s *sweep) Start() error {
-	return fmt.Errorf("not implemented yet")
+	for idx, b := range s.Buckets {
+		if b == nil {
+			// if we run into a nil bucket in the map, then remove it and start
+			// over; this will not infinite loop unless you have infinite
+			// buckets, and ja...fat chance of that...
+			s.RemoveBucket(idx)
+			return s.Start()
+		}
+
+		select {
+		case <-s.ctx.Done():
+			return s.ctx.Err()
+		default:
+			s.muMeasure.Lock()
+
+			vrms, err := s.Measure(b.Center())
+			if err != nil {
+				fmt.Println("Error: " + err.Error())
+			} else {
+				b.UpdateVrms(vrms)
+			}
+
+			s.muMeasure.Unlock()
+		}
+	}
+
+	return nil
 }
 
 func (s *sweep) Stop() error {
 	s.cancel()
 
-	if err := s.ctx.Err(); err != nil {
-		return err
-	}
+	return s.ctx.Err()
+}
 
-	return nil
+func (s *sweep) RemoveBucket(idx int) {
+	s.muBuckets.Lock()
+	defer s.muBuckets.Unlock()
+
+	delete(s.Buckets, idx)
+}
+
+func (s *sweep) Measure(freq float64) (float64, error) {
+	// return device.Measure(freq)
+
+	return -1, nil
 }
 
 type Bucket interface {
