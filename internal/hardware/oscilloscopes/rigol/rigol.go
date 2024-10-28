@@ -3,6 +3,6 @@
 
 package rigol
 
-import "github.com/storskegg/lab-audio-analyzer/hardware/functions"
+import "github.com/storskegg/lab-audio-analyzer/internal/hardware/functions"
 
 const Functions = functions.SupportsFunctionVrms & functions.SupportsFunctionDDS
