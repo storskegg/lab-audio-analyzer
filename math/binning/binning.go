@@ -1,6 +1,7 @@
 package binning
 
 import (
+	"errors"
 	"math"
 	"sync"
 )
@@ -13,22 +14,37 @@ import (
 // noted the reference to Table 1 in the comments.
 
 const (
-	Xi   float64 = 0.3 // Fractional segment overlap (ξ); 0 <= Xi <= 1
-	Kdes         = 100 // Number of desired averages
-	Kmin         = 3   // Minimimum number of averages
-	Fs           = 1   // Sampling frequency of a time series
-	N            = 100 // Number of data; TODO
-	// ravg is the smallest frequency resolution with Kdes averages
-	ravg = (Fs / float64(N)) * (1 + (1-Xi)*(Kdes-1))
-	// rmin is the frequency resolution corresponding to Kmin averages
-	rmin = (Fs / float64(N)) * (1 + (1-Xi)*(Kmin-1))
+	Fs = 1 // Sampling frequency of a time series
 )
 
 type Bins interface {
 	FreqMin() float64
-	FreqEnd() float64
+	FreqMax() float64
+}
 
-	G() float64 // Table 1 (g)
+func NewBins(fmin float64, fmax float64, qtyBins int) (*bins, error) {
+	if qtyBins%2 == 0 {
+		return nil, errors.New("number of bins must be odd")
+	}
+
+	b := &bins{
+		Fmin:    fmin,
+		Fmax:    fmax,
+		g:       g(fmin, fmax),
+		NumBins: qtyBins,
+		bins:    make([]Bin, qtyBins),
+	}
+
+	fNext := fmin
+	var fp float64
+
+	for i := 0; i < qtyBins; i++ {
+		fp = rp(i, fmin, fmax, qtyBins)
+		b.bins[i] = NewBin(fNext)
+		fNext += fp
+	}
+
+	return b, nil
 }
 
 type bins struct {
@@ -36,11 +52,25 @@ type bins struct {
 
 	Fmin float64
 	Fmax float64
+	g    float64
 
-	J    int // Fourier frequencies
-	Jdes int // Desired number of Fourier frequencies
+	NumBins int
 
 	bins []Bin
+}
+
+func (b *bins) FreqMin() float64 {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	return b.Fmin
+}
+
+func (b *bins) FreqMax() float64 {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	return b.Fmax
 }
 
 // g is an abbreviation
@@ -57,22 +87,4 @@ func f(idx int, fmin float64, fmax float64, lenBins int) float64 {
 // rp returns the difference between the given Fourier frequency and the next one.
 func rp(idx int, fmin float64, fmax float64, lenBins int) float64 {
 	return f(idx, fmin, fmax, lenBins) * (math.Exp(g(fmin, fmax)/float64(lenBins-1)) - 1)
-}
-
-// ravg returns the smallest frequency resolution with Kdes averages.
-//func ravg(N int) float64 {
-//	return (Fs / float64(N)) * (1 + (1-Xi)*(Kdes-1))
-//}
-
-// rpp Fn(18) of the pdf
-func rpp(idx int, fmin float64, fmax float64, lenBins int) float64 {
-	rpi := rp(idx, fmin, fmax, lenBins)
-
-	if rpi >= ravg {
-		return rpi
-	} else if xxx := math.Sqrt(ravg * rpi); rpi < ravg && xxx > rmin {
-		return xxx
-	}
-
-	return rmin
 }
