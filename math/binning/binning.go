@@ -4,6 +4,8 @@ import (
 	"errors"
 	"math"
 	"sync"
+
+	"github.com/storskegg/lab-audio-analyzer/math/decimal"
 )
 
 // Note that the naming in this package differs from idiomatic conventions, and
@@ -27,20 +29,37 @@ func NewBins(fmin float64, fmax float64, qtyBins int) (*bins, error) {
 		return nil, errors.New("number of bins must be odd")
 	}
 
+	var d decimal.Decimal
+
 	b := &bins{
-		Fmin:    fmin,
-		Fmax:    fmax,
-		g:       g(fmin, fmax),
-		NumBins: qtyBins,
-		bins:    make([]Bin, qtyBins),
+		Fmin:        fmin,
+		Fmax:        fmax,
+		g:           g(fmin, fmax),
+		NumBins:     qtyBins,
+		binsByIndex: make(map[int]decimal.Hash, qtyBins),
+		binByCenter: make(map[decimal.Hash]Bin, qtyBins),
 	}
 
-	fNext := fmin
-	var fp float64
+	fNext, err := decimal.New(fmin)
+	if err != nil {
+		return nil, err
+	}
+
+	fp, _ := decimal.New(0)
 
 	for i := 0; i < qtyBins; i++ {
-		fp = rp(i, fmin, fmax, qtyBins)
-		b.bins[i] = NewBin(fNext)
+		fp, err = decimal.New(rp(i, fmin, fmax, qtyBins))
+
+		b.binsByIndex[i], err = fp.Hash()
+		if err != nil {
+			return nil, err
+		}
+
+		b.binByCenter[b.binsByIndex[i]], err = NewBin(fNext.Float64())
+		if err != nil {
+			return nil, err
+		}
+		fNext = fNext.Add
 		fNext += fp
 	}
 
@@ -56,7 +75,8 @@ type bins struct {
 
 	NumBins int
 
-	bins []Bin
+	binsByIndex map[int]decimal.Hash
+	binByCenter map[decimal.Hash]Bin
 }
 
 func (b *bins) FreqMin() float64 {

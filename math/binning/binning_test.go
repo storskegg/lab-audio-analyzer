@@ -30,6 +30,7 @@ func TestNewBins(t *testing.T) {
 				Fmax:    100,
 				g:       2.302585092994046,
 				NumBins: 11,
+				binsByIndex: map[int]string{}
 				bins: []Bin{
 					&bin{center: "10.000"},
 					&bin{center: "12.589"},

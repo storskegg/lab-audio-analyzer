@@ -3,6 +3,7 @@ module github.com/storskegg/lab-audio-analyzer
 go 1.23.2
 
 require (
+	github.com/govalues/decimal v0.1.32
 	github.com/spf13/cobra v1.8.1
 	github.com/stretchr/testify v1.9.0
 )

@@ -19,10 +19,14 @@ type Bin interface {
 	UpdateCenter(center float64)
 }
 
-func NewBin(center float64) Bin {
+func NewBin(center float64, ok bool) (Bin, error) {
+	if !ok {
+		return nil, fmt.Errorf("invalid center frequency: %f", center)
+	}
+
 	return &bin{
 		center: fmt.Sprintf("%.3f", center),
-	}
+	}, nil
 }
 
 type bin struct {
